@@ -5,46 +5,33 @@ Storage = {"WikiEntries": []}
 class WikiHandler(xml.sax.ContentHandler):
     def __init__(self):
         super().__init__()
-        # self.Storage = []
+        # self.count = 0
 
     def startElement(self, name, attrs):
         self.Tag = name
-    
+
+        # if self.count >= 6:
+        #     return
+
+    # This gives us an array in which each entry is a ["Title","Content"].
     def characters(self, content):
         if self.Tag == "title":
-            # self.Title = content
-            # self.Storage.append([self.Title])
+            # # Just for testing
+            # if self.count >= 6:
+            #     return
+            # self.count += 1
             Storage["WikiEntries"].append([content])
 
         elif self.Tag == "text":
             if len(Storage["WikiEntries"][-1]) == 1:
-                # self.Storage[-1].append(content)
                 Storage["WikiEntries"][-1].append(content)
 
             else:
-                # self.Storage[-1][1] += content
                 Storage["WikiEntries"][-1][1] += content
 
-
-    # def characters(self, content):
-    #     if self.Tag in ['mediawiki','siteinfo', 'sitename', 'dbname', 'base','generator', 'case', 'namespaces', 'namespace']:
-    #         pass
-    #     elif self.Tag == "page":
-    #         Storage["WikiEntry"].append({})
-    #     else:
-    #         Storage["WikiEntry"][-1][self.Tag] = content
-
-
-
-    # def characters(self, content):
-    #     print(self.Tag,":")
-    #     print(content)
-    #     print("----------")
-    #     print()
-        
-
-
     def endElement(self, name):
+        # if self.count >= 6:
+        #     return
         self.Tag = ""
         # print("Element Ended")
     
@@ -57,7 +44,9 @@ parser = xml.sax.make_parser()
 parser.setContentHandler(WikiHandler())
 parser.parse("enwiki-20220720-pages-articles-multistream15.xml-p15824603p17324602")
 print(Storage["WikiEntries"][1])
+print()
 print(Storage["WikiEntries"][2])
+print()
 print(Storage["WikiEntries"][3])
 
 # {'Title': 'Wikipedia:WikiProject Spam/LinkReports/izteremka.com', 'Text': '>'}
