@@ -87,7 +87,7 @@ class WikiHandler(xml.sax.ContentHandler):
             # Call the processing functions
             self.ProcessData()
             self.Indexing()
-            print("Page: ",Storage["PageNum"])
+            # print("Page: ",Storage["PageNum"])
             self.ResetData()
 
     def ProcessData(self):
@@ -104,49 +104,10 @@ class WikiHandler(xml.sax.ContentHandler):
 
         # Get Infobox
         self.GetInfobox()
-        
-        # print("IIIIIIIIII")
-        # print("InfoBox: ")
-        # print(self.InfoBox)
-        # print("IIIIIIIII")
-        # print()
-        
+            
         # Get References. This also gets Categories and External Links
         self.GetReferences()
 
-        # self.Body = re.sub('[|=\[\]\{\}\(\)\'\"]',' ',self.Body)
-
-        # print("BBBBBBBBB")
-        # print("Body ",self.count," After Extracting Categories")
-        # print(self.Body)
-        # print("BBBBBBBBB")
-        # print()
-
-        # print("Title")
-        # print(self.Title)
-        # print()
-
-        # print("Infobox")
-        # print(self.InfoBox)
-        # print()
-
-        # print("Body")
-        # print(self.Body)
-        # print()
-
-        # print("Categories")
-        # print(self.Category)
-        # print()
-
-        # print("References")
-        # print(self.References)
-        # print()
-
-        # print("External Links")
-        # print(self.Links)
-        # print()
-
-        # print("##################################")
 
         # Bag of Words
         BOW = BagOfWords()
@@ -158,32 +119,6 @@ class WikiHandler(xml.sax.ContentHandler):
         self.References = BOW.Tokenize(self.References)
         self.Links = BOW.Tokenize(self.Links)
 
-        # print("Title")
-        # print(self.Title)
-        # print()
-
-        # print("Infobox")
-        # print(self.InfoBox)
-        # print()
-
-        # print("Body")
-        # print(self.Body)
-        # print()
-
-        # print("Categories")
-        # print(self.Category)
-        # print()
-
-        # print("References")
-        # print(self.References)
-        # print()
-
-        # print("External Links")
-        # print(self.Links)
-        # print()
-
-        # print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-
         # Removing Stop words and Stemming
         self.Title = BOW.StopANDStem(self.Title)
         self.Body = BOW.StopANDStem(self.Body)
@@ -192,30 +127,6 @@ class WikiHandler(xml.sax.ContentHandler):
         self.References = BOW.StopANDStem(self.References)
         self.Links = BOW.StopANDStem(self.Links)
         
-        # print("Title")
-        # print(self.Title)
-        # print()
-
-        # print("Infobox")
-        # print(self.InfoBox)
-        # print()
-
-        # print("Body")
-        # print(self.Body)
-        # print()
-
-        # print("Categories")
-        # print(self.Category)
-        # print()
-
-        # print("References")
-        # print(self.References)
-        # print()
-
-        # print("External Links")
-        # print(self.Links)
-        # print()
-
     def GetInfobox(self):
         # Getting the Infobox data
         self.InfoBox = ' '.join(re.findall("(?<={{infobox)(.*?)(?=}})",self.Text))
@@ -239,23 +150,12 @@ class WikiHandler(xml.sax.ContentHandler):
 
         
         self.References = ' '.join(re.findall("(?<=\*\[)(.*?)(?=\])",self.References))
-
-        # print("RRRRRRRRRR")
-        # print(self.References)
-        # print("RRRRRRRRRRR")
-        # print()
-
-        
+      
     def GetCategories(self):
         self.Category = ' '.join(re.findall("(?<=\[\[category:)(.*?)(?=\]\])",self.References))
         # Removing Categories from References
         self.References = re.sub("(\[\[category:)(.*?)(\]\])", " ", self.References)
-        # print("CCCCCCCCCCCCc")
-        # print("Categories: ")
-        # print(self.Category)
-        # print("CCCCCCCCCCCCc")
-        # print()
-
+    
     def GetExternalLinks(self):
         ExternalSplit = self.References.split("==external links==")
         if len(ExternalSplit) == 1:
@@ -268,11 +168,6 @@ class WikiHandler(xml.sax.ContentHandler):
             temp = ExternalSplit[1]
             self.Links = ' '.join(re.findall("(?<=\* \[)(.*?)(?=\])",temp))
 
-            # print("EEEEEEEEE")
-            # print(self.Links)
-            # print("EEEEEEEEEe")
-            # print()
-    
     def Indexing(self):
         PageIndexer = Indexing(self.Title, self.InfoBox, self.Body, self.Category, self.References, self.Links)
         PageIndexer.CreateIndex()
@@ -375,11 +270,110 @@ def writeIntoFile():
     TitleFile.close()
 
 
-parser = xml.sax.make_parser()
-parser.setContentHandler(WikiHandler())
-# parser.parse("/home/radheshyam/Desktop/Year3_1/IREL/IREL-MiniProject/Phase 1/enwiki-20220720-pages-articles-multistream15.xml-p15824603p17324602")
-parser.parse(sys.argv[1])
+def MergeFiles():
+    tempFileNames = ['./data/temp0.txt','./data/temp1.txt']
 
+    # Rename index0 to temp1.
+    os.rename('./data/index0.txt','./data/temp1.txt')
+
+    for i in range(1,Storage["IndexFileNum"]):
+        readFileName = './data/index'+str(i)+'.txt'
+        readFiles = [open(readFileName,'r'),open(tempFileNames[i%2],'r')]
+
+        if os.path.exists(tempFileNames[(i+1)%2]):
+            os.remove(tempFileNames[(i+1)%2])
+        FinalIndexFile = open(tempFileNames[(i+1)%2],'w')
+        
+        line0 = readFiles[0].readline()
+        line1 = readFiles[1].readline()
+        splitLine0 = line0.split(':')
+        splitLine1 = line1.split(':')
+    
+        while line0 and line1:
+            if splitLine0[0] < splitLine1[0]:
+            # Token of line1 lexicographically smaller than that of line 2
+                FinalIndexFile.write(line0)
+                line0 = readFiles[0].readline()
+                splitLine0 = line0.split(':')
+            
+            elif splitLine0[0] > splitLine1[0]:
+                FinalIndexFile.write(line1)
+                line1 = readFiles[1].readline()
+                splitLine1 = line1.split(':')
+
+            else:
+                FinalIndexFile.write(splitLine0[0]+':'+splitLine0[1].strip()+splitLine1[1])
+                line0 = readFiles[0].readline()
+                line1 = readFiles[1].readline()
+                splitLine0 = line0.split(':')
+                splitLine1 = line1.split(':')
+        
+        while line0:
+            FinalIndexFile.write(line0)
+            line0 = readFiles[0].readline()
+        
+        while line1:
+            FinalIndexFile.write(line1)
+            line1 = readFiles[1].readline()
+
+
+        readFiles[0].close()
+        readFiles[1].close()
+        FinalIndexFile.close()
+
+        # Delete old index file
+        os.remove(readFileName)
+
+    # Rename temp0 to BigIndex
+    os.rename(tempFileNames[Storage["IndexFileNum"]%2],'./data/BigIndex.txt')
+    os.remove(tempFileNames[(Storage["IndexFileNum"]+1)%2])
+
+def FinalSplit():
+
+    TokenThreshold = 10000
+
+    PageCount = 0
+
+    BigIndex = open('./data/BigIndex.txt','r')
+    line = BigIndex.readline()
+    TokenCount = 1
+
+    IndexPage = open('./data/index0.txt','w')
+
+    writeList = []
+
+    while line:
+        if TokenCount%TokenThreshold == 0:
+
+            IndexPage.write(''.join(writeList))
+            IndexPage.close()
+            PageCount += 1
+            PageName = './data/index' + str(PageCount) + '.txt'
+            IndexPage = open(PageName, 'w')
+            writeList = []
+        
+        writeList.append(line)
+        line = BigIndex.readline()
+        TokenCount += 1
+
+    IndexPage.write('\n'.join(writeList))
+    IndexPage.close()
+    BigIndex.close()
+    os.remove('./data/BigIndex.txt')
+
+    print("Total Pages: ",PageCount)
+    print("Total Tokens: ",TokenCount)
+
+# parser = xml.sax.make_parser()
+# parser.setContentHandler(WikiHandler())
+# # parser.parse("/home/radheshyam/Desktop/Year3_1/IREL/IREL-MiniProject/Phase 1/enwiki-20220720-pages-articles-multistream15.xml-p15824603p17324602")
+# parser.parse(sys.argv[1])
+
+# # Now, merge all these index files and then split it again. So we will have unique tokens (not repeated across multiple files)
+# # Step 1: Merge
+# MergeFiles()
+# Step 2: Split for every 10000 tokens?
+FinalSplit()
 
 # print(Storage["WikiEntries"][1])
 # print()
@@ -398,3 +392,6 @@ parser.parse(sys.argv[1])
 # 'parentid': 330666, 'timestamp': 476811, 'contributor': 476811, 
 # 'username': 465371, 'minor': 196130, 'model': 476811, 'format': 476811, 
 # 'text': 476811, 'sha1': 476811, 'comment': 448183, 'ip': 11437, 'redirect': 282745}
+
+# Quarter Dump Stats:
+# 1000 - 4m27.343s, 82mb
