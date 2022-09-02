@@ -182,6 +182,7 @@ class WikiHandler(xml.sax.ContentHandler):
         # If anything is left unwritten!!!
         if len(Storage["PageTitle"]) != 0:
             writeIntoFile()
+            Storage["IndexFileNum"] += 1
 
         # Write extra stats into anothe file called extraDets.txt
         ExtraFile = open('./data/extraDets.txt', 'w')
