@@ -2,8 +2,7 @@
 
 import sys
 import xml.sax
-# Regex
-import re
+import re       # Regex
 from nltk.corpus import stopwords
 # import nltk
 # nltk.download('stopwords')
@@ -11,7 +10,7 @@ from collections import defaultdict
 from nltk.stem import SnowballStemmer
 import os
 
-Storage = {"PageNum": 0, "IndexFileNum": 0, "PostingLists": defaultdict(list), "offset": 0, "dictID": {}, "PageTitle": []}
+Storage = {"PageNum": 0, "IndexFileNum": 0, "PostingLists": defaultdict(list), "PageTitle": [], "DocChunk": 1001, "TokenChunk": 10001}
 
 StopWordsExtension = ["jpg"]
 
@@ -22,17 +21,20 @@ class BagOfWords():
         self.StopWordsDict = defaultdict(int)
         for stop in self.StopWords:
             self.StopWordsDict[stop] = 1
-        # Add custom stipwords in this list
+        # Add custom stopwords in this list
         MoreStopWords = []
         for stop in MoreStopWords:
             self.StopWordsDict[stop] = 1
         self.SnowStem = SnowballStemmer('english')
 
     def Tokenize(self,unrefinedStr):
+
+        # Otherwise some characters are incorrectly converting to japanese/chinese type characters.
+        unrefinedStr = unrefinedStr.encode("ascii", errors="ignore").decode()
         unrefinedStr = re.sub(r'http[^\ ]*\ ', r' ', unrefinedStr) # removing urls
         # unrefinedStr = re.sub(r'\S+\.com\S+',' ', unrefinedStr) # removing urls
         # unrefinedStr = re.sub(r'\—|\'|\`|\‘|\′|\"|\”|\“|\″|\–|\−|\·|\||\.|\*|\[|\{|\}|\(|\)|\]|\;|\:|\,|\=|\＝|\-|\+|\_|\!|\?|\/|\>|\＜|\＜|\<|\&|\\|\#|\$|\@|\%||\₹|\₽|\€|\n', r' ', unrefinedStr) # removing special characters
-        unrefinedStr = re.sub(r'\—|\'|\`|\"|\||\.|\*|\[|\{|\}|\(|\)|\]|\;|\:|\,|\=|\-|\+|\_|\!|\?|\/|\>|\<|\&|\\|\#|\$|\@|\%|\n', r' ', unrefinedStr)
+        unrefinedStr = re.sub(r'\—|\'|\`|\"|\||\.|\*|\[|\{|\}|\(|\)|\]|\;|\:|\,|\=|\~|\-|\+|\_|\!|\?|\/|\>|\<|\&|\\|\#|\$|\@|\%|\n', r' ', unrefinedStr)
         
         unrefinedStr = re.sub(r'&nbsp;|&lt;|&gt;|&amp;|&quot;|&apos;', r' ', unrefinedStr) # removing html entities
 
@@ -45,6 +47,7 @@ class BagOfWords():
         Bag = [self.SnowStem.stem(word) for word in Bag if self.StopWordsDict[word] != 1]
 
         # To DO:
+        # Probably remove long numbers
         # Remove 1 letter words
 
         return Bag
@@ -175,8 +178,16 @@ class WikiHandler(xml.sax.ContentHandler):
 
     def endDocument(self):
         print("Document Ended!!!")
-        # return self.Storage
 
+        # If anything is left unwritten!!!
+        if len(Storage["PageTitle"]) != 0:
+            writeIntoFile()
+
+        # Write extra stats into anothe file called extraDets.txt
+        ExtraFile = open('./data/extraDets.txt', 'w')
+        DocDets = ["DocSize:" + str(Storage["PageNum"]),"DocChunk:"+str(Storage["DocChunk"]),"TokenChunk:"+str(Storage["TokenChunk"])+"\n"]
+        ExtraFile.write('\n'.join(DocDets))
+        ExtraFile.close()
 
 class Indexing:
     def __init__(self, Title, Infobox, Body, Categories, References, ExtLink):
@@ -240,13 +251,11 @@ class Indexing:
             Storage["PostingLists"][token].append(PostListStr)
 
         Storage["PageNum"] += 1
-        if Storage["PageNum"]%1000 == 0:
+        if Storage["PageNum"]%int(Storage["DocChunk"]) == 0:
             writeIntoFile()
             Storage["PostingLists"] = defaultdict(list)
-            Storage["dictID"] = {}
             Storage["IndexFileNum"] += 1
             Storage["PageTitle"] = []
-
 
 
 def writeIntoFile():
@@ -330,8 +339,6 @@ def MergeFiles():
 
 def FinalSplit():
 
-    TokenThreshold = 10000
-
     PageCount = 0
 
     BigIndex = open('./data/BigIndex.txt','r')
@@ -340,10 +347,13 @@ def FinalSplit():
 
     IndexPage = open('./data/index0.txt','w')
 
+    SecondaryIndexList = []
+    SecondaryIndexList.append(line.split(':')[0])
+
     writeList = []
 
     while line:
-        if TokenCount%TokenThreshold == 0:
+        if TokenCount%int(Storage["TokenChunk"]) == 0:
 
             IndexPage.write(''.join(writeList))
             IndexPage.close()
@@ -351,39 +361,40 @@ def FinalSplit():
             PageName = './data/index' + str(PageCount) + '.txt'
             IndexPage = open(PageName, 'w')
             writeList = []
+            SecondaryIndexList.append(line.split(':')[0])
         
         writeList.append(line)
         line = BigIndex.readline()
         TokenCount += 1
 
-    IndexPage.write('\n'.join(writeList))
+    IndexPage.write(''.join(writeList))
     IndexPage.close()
     BigIndex.close()
+
+    # Has the first token of each Indexfile for easier search
+    SecondaryIndex = open('./data/SecondaryIndex.txt','w')
+    SecondaryIndex.write(' '.join(SecondaryIndexList))
+    SecondaryIndex.close()
+
     os.remove('./data/BigIndex.txt')
 
     print("Total Pages: ",PageCount)
     print("Total Tokens: ",TokenCount)
 
-# parser = xml.sax.make_parser()
-# parser.setContentHandler(WikiHandler())
-# # parser.parse("/home/radheshyam/Desktop/Year3_1/IREL/IREL-MiniProject/Phase 1/enwiki-20220720-pages-articles-multistream15.xml-p15824603p17324602")
-# parser.parse(sys.argv[1])
+parser = xml.sax.make_parser()
+parser.setContentHandler(WikiHandler())
+# parser.parse("/home/radheshyam/Desktop/Year3_1/IREL/IREL-MiniProject/Phase 1/enwiki-20220720-pages-articles-multistream15.xml-p15824603p17324602")
+parser.parse(sys.argv[1])
 
-# # Now, merge all these index files and then split it again. So we will have unique tokens (not repeated across multiple files)
-# # Step 1: Merge
-# MergeFiles()
+# Now, merge all these index files and then split it again. So we will have unique tokens (not repeated across multiple files)
+# Step 1: Merge
+MergeFiles()
 # Step 2: Split for every 10000 tokens?
 FinalSplit()
 
-# print(Storage["WikiEntries"][1])
-# print()
-# print(Storage["WikiEntries"][2])
-# print()
-# print(Storage["WikiEntries"][3])
 
-# {'Title': 'Wikipedia:WikiProject Spam/LinkReports/izteremka.com', 'Text': '>'}
-# {'Title': 'Pushmataha Area Council', 'Text': '[[Category:1925 establishments in Mississippi]]'}
-# {'Title': 'Wikipedia:Peer review/McMansion', 'Text': '#REDIRECT [[Wikipedia:Peer review/McMansion/archive1]]'}
+
+
 
 # All the Tags in the document:
 # {'mediawiki': 1, 'siteinfo': 1, 'sitename': 1, 'dbname': 1, 'base': 1, 
