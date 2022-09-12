@@ -8,27 +8,23 @@ from nltk.corpus import stopwords
 # nltk.download('stopwords')
 from collections import defaultdict
 from nltk.stem import SnowballStemmer
+# from nltk.stem import PorterStemmer
+# from nltk.stem import LancasterStemmer
+from functools import lru_cache
 import os
 
-Storage = {"PageNum": 0, "IndexFileNum": 0, "PostingLists": defaultdict(list), "PageTitle": [], "DocChunk": 1001, "TokenChunk": 10001}
+Storage = {"PageNum": 0, "IndexFileNum": 0, "PostingLists": defaultdict(list), "PageTitle": [], "DocChunk": 10001, "TokenChunk": 10001}
 
-StopWordsExtension = ["jpg"]
+StopWords = set(stopwords.words("english"))
+myStemmer = SnowballStemmer('english')
+cachedStem = lru_cache(maxsize=100000)(myStemmer.stem)
+# myStemmer = PorterStemmer()
+# myStemmer = LancasterStemmer()
+
 
 class BagOfWords():
 
-    def __init__(self):
-        self.StopWords = set(stopwords.words("english"))
-        self.StopWordsDict = defaultdict(int)
-        for stop in self.StopWords:
-            self.StopWordsDict[stop] = 1
-        # Add custom stopwords in this list
-        MoreStopWords = []
-        for stop in MoreStopWords:
-            self.StopWordsDict[stop] = 1
-        self.SnowStem = SnowballStemmer('english')
-
     def Tokenize(self,unrefinedStr):
-
         # Otherwise some characters are incorrectly converting to japanese/chinese type characters.
         unrefinedStr = unrefinedStr.encode("ascii", errors="ignore").decode()
         unrefinedStr = re.sub(r'http[^\ ]*\ ', r' ', unrefinedStr) # removing urls
@@ -36,21 +32,33 @@ class BagOfWords():
         # unrefinedStr = re.sub(r'\—|\'|\`|\‘|\′|\"|\”|\“|\″|\–|\−|\·|\||\.|\*|\[|\{|\}|\(|\)|\]|\;|\:|\,|\=|\＝|\-|\+|\_|\!|\?|\/|\>|\＜|\＜|\<|\&|\\|\#|\$|\@|\%||\₹|\₽|\€|\n', r' ', unrefinedStr) # removing special characters
         unrefinedStr = re.sub(r'\—|\'|\`|\"|\||\.|\*|\[|\{|\}|\(|\)|\]|\;|\:|\,|\=|\~|\-|\+|\_|\!|\?|\/|\>|\<|\&|\\|\#|\$|\@|\%|\n', r' ', unrefinedStr)
         
-        unrefinedStr = re.sub(r'&nbsp;|&lt;|&gt;|&amp;|&quot;|&apos;', r' ', unrefinedStr) # removing html entities
+        # unrefinedStr = re.sub(r'&nbsp;|&lt;|&gt;|&amp;|&quot;|&apos;', r' ', unrefinedStr) # removing html entities
 
         # To Do:
         # Remove prefixes, suffixes to numbers like 100th 25kmph
+        unrefinedStr = re.sub("[A-Za-z]+", lambda ele: " " + ele[0] + " ", unrefinedStr)
 
         return unrefinedStr.split()
 
-    def StopANDStem(self, Bag):
-        Bag = [self.SnowStem.stem(word) for word in Bag if self.StopWordsDict[word] != 1]
+    def TokenizeArr(self, arr):
+        retArr = []
+        for unrefinedStr in arr:
+            retArr.extend(self.Tokenize(unrefinedStr))
+        return retArr      
 
+    def StopANDStem(self, Bag):
+        global StopWords
+        # global myStemmer
+        global cachedStem
+
+        # retBag = [myStemmer.stem(word) for word in Bag if word not in StopWords and len(word) != 1]
+        retBag = [cachedStem(word) for word in Bag if word not in StopWords and len(word) != 1]
         # To DO:
         # Probably remove long numbers
-        # Remove 1 letter words
 
-        return Bag
+        return retBag
+
+BOW = BagOfWords()
 
 class WikiHandler(xml.sax.ContentHandler):
     def __init__(self):
@@ -58,19 +66,19 @@ class WikiHandler(xml.sax.ContentHandler):
         self.count = -1
         self.Title = ""
         self.Text = ""
-        self.InfoBox = ""
+        self.InfoBox = []
         self.Body = ""
-        self.Category = ""
-        self.Links = ""
+        self.Category = []
+        self.Links = []
         self.References = ""
 
     def ResetData(self):
         self.Title = ""
         self.Text = ""
-        self.InfoBox = ""
+        self.InfoBox = []
         self.Body = ""
-        self.Category = ""
-        self.Links = ""
+        self.Category = []
+        self.Links = []
         self.References = ""
 
     def startElement(self, name, attrs):
@@ -90,10 +98,12 @@ class WikiHandler(xml.sax.ContentHandler):
             # Call the processing functions
             self.ProcessData()
             self.Indexing()
-            # print("Page: ",Storage["PageNum"])
+            print("Page: ",Storage["PageNum"])        
+
             self.ResetData()
 
     def ProcessData(self):
+        global BOW
         # Clean Text and extract components
 
         # Remove newline
@@ -113,14 +123,13 @@ class WikiHandler(xml.sax.ContentHandler):
 
 
         # Bag of Words
-        BOW = BagOfWords()
         # Tokenise
         self.Title = BOW.Tokenize(self.Title)
         self.Body = BOW.Tokenize(self.Body)
-        self.InfoBox = BOW.Tokenize(self.InfoBox)
-        self.Category = BOW.Tokenize(self.Category)
-        self.References = BOW.Tokenize(self.References)
-        self.Links = BOW.Tokenize(self.Links)
+        self.InfoBox = BOW.TokenizeArr(self.InfoBox)
+        self.Category = BOW.TokenizeArr(self.Category)
+        self.References = BOW.TokenizeArr(self.References)
+        self.Links = BOW.TokenizeArr(self.Links)
 
         # Removing Stop words and Stemming
         self.Title = BOW.StopANDStem(self.Title)
@@ -132,7 +141,8 @@ class WikiHandler(xml.sax.ContentHandler):
         
     def GetInfobox(self):
         # Getting the Infobox data
-        self.InfoBox = ' '.join(re.findall("(?<={{infobox)(.*?)(?=}})",self.Text))
+        # Returns a list. so will call TokenizeArr
+        self.InfoBox = re.findall("(?<={{infobox)(.*?)(?=}})",self.Text)
         # Removing Infobox data from the text.
         self.Text = re.sub("({{infobox)(.*?)(}})"," ",self.Text)
         # self.InfoBox = re.sub('[|=\[\]\{\}\(\)\'\"\,\*\.\;]',' ',self.InfoBox)
@@ -151,11 +161,11 @@ class WikiHandler(xml.sax.ContentHandler):
             self.GetCategories()
             self.GetExternalLinks()
 
-        
-        self.References = ' '.join(re.findall("(?<=\*\[)(.*?)(?=\])",self.References))
+        # References is also a list. So TokeniseArr
+        self.References = re.findall("(?<=\*\[)(.*?)(?=\])",self.References)
       
     def GetCategories(self):
-        self.Category = ' '.join(re.findall("(?<=\[\[category:)(.*?)(?=\]\])",self.References))
+        self.Category = re.findall("(?<=\[\[category:)(.*?)(?=\]\])",self.References)
         # Removing Categories from References
         self.References = re.sub("(\[\[category:)(.*?)(\]\])", " ", self.References)
     
@@ -169,7 +179,7 @@ class WikiHandler(xml.sax.ContentHandler):
         if len(ExternalSplit) != 1:
             # References section exists
             temp = ExternalSplit[1]
-            self.Links = ' '.join(re.findall("(?<=\* \[)(.*?)(?=\])",temp))
+            self.Links = re.findall("(?<=\* \[)(.*?)(?=\])",temp)
 
     def Indexing(self):
         PageIndexer = Indexing(self.Title, self.InfoBox, self.Body, self.Category, self.References, self.Links)
@@ -266,6 +276,8 @@ def writeIntoFile():
         TokenPostingList += ''.join(Storage["PostingLists"][token])
         FinalPostingList += TokenPostingList +'\n'
 
+    print("Writing to index"+str(Storage["IndexFileNum"]))
+
     filename = './data/index' + str(Storage["IndexFileNum"]) + '.txt'
     os.makedirs(os.path.dirname(filename),exist_ok=True)
     IndexFile = open(filename, 'w')
@@ -287,6 +299,7 @@ def MergeFiles():
     os.rename('./data/index0.txt','./data/temp1.txt')
 
     for i in range(1,Storage["IndexFileNum"]):
+        print("Merging "+str(i))
         readFileName = './data/index'+str(i)+'.txt'
         readFiles = [open(readFileName,'r'),open(tempFileNames[i%2],'r')]
 
@@ -355,7 +368,7 @@ def FinalSplit():
 
     while line:
         if TokenCount%int(Storage["TokenChunk"]) == 0:
-
+            print("Final Index:"+str(PageCount))
             IndexPage.write(''.join(writeList))
             IndexPage.close()
             PageCount += 1
@@ -405,5 +418,21 @@ FinalSplit()
 # 'username': 465371, 'minor': 196130, 'model': 476811, 'format': 476811, 
 # 'text': 476811, 'sha1': 476811, 'comment': 448183, 'ip': 11437, 'redirect': 282745}
 
-# Quarter Dump Stats:
+# Quarter Dump Stats: (319MB)
+# 800 - (12.09.2022) 4m16.031s, 78.5mb
 # 1000 - 4m27.343s, 82mb
+# 1000 - (12.09.2022) 4m45.756s, 78.5mb
+# 2000 - (12.09.2022) 4m24.920s, 78.5mb
+# 5000 - (12.09.2022) 3m48.570s, 78.5mb
+# 10000 - (12.09.2022) 3m56.801s, 78.5mb (TokChunk 5000)
+###### 10000 - (12.09.2022) 3m41.725s, 78.5mb (TokenChunk 10000)
+################################# 10000 - (12.09.2022) 1m27.380s, 78.5mb (TokenChunk 10000) [Snowball Stemmer] [Using Caching!!!!]
+# 10000 - (12.09.2022) 3m44.616s, 78.5mb (TokChunk 20000)
+# 10000 - (12.09.2022) 5m34.188s, 78.5mb (TokChunk 10000) [Porter Stemmer]
+# 10000 - (12.09.2022) 4m28.009s, 78.5mb (TokChunk 10000) [Lancaster Stemmer]
+# 15000 - (12.09.2022) 3m54.062s, 78.5mb (TokenChunk 10000)
+# 30000 - (12.09.2022) 3m55.689s, 78.5mb
+
+# Full Dump Stats: (1.5GB)
+# 1000 - 26m42.046s, 375MB
+# 10000 - (12.09.2022) 7m19.397s, 360.7MB (TokenChunk 10000) [Snowball Stemmer] [Using Caching!!!!]
