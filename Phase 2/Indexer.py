@@ -13,6 +13,8 @@ from nltk.stem import SnowballStemmer
 from functools import lru_cache
 import os
 
+from pathlib import Path
+
 Storage = {"PageNum": 0, "IndexFileNum": 0, "PostingLists": defaultdict(list), "PageTitle": [], "DocChunk": 10001, "TokenChunk": 10001}
 
 StopWords = set(stopwords.words("english"))
@@ -195,7 +197,8 @@ class WikiHandler(xml.sax.ContentHandler):
             Storage["IndexFileNum"] += 1
 
         # Write extra stats into anothe file called extraDets.txt
-        ExtraFile = open('./data/extraDets.txt', 'w')
+        ExtraFileName = str(OutPutPath)+"/data/extraDets.txt"
+        ExtraFile = open(ExtraFileName, 'w')
         DocDets = ["DocSize:" + str(Storage["PageNum"]),"DocChunk:"+str(Storage["DocChunk"]),"TokenChunk:"+str(Storage["TokenChunk"])+"\n"]
         ExtraFile.write('\n'.join(DocDets))
         ExtraFile.close()
@@ -278,13 +281,15 @@ def writeIntoFile():
 
     print("Writing to index"+str(Storage["IndexFileNum"]))
 
-    filename = './data/index' + str(Storage["IndexFileNum"]) + '.txt'
+    # filename = './data/index' + str(Storage["IndexFileNum"]) + '.txt'
+    filename = str(OutPutPath)+"/data/index" + str(Storage["IndexFileNum"]) + '.txt'
     os.makedirs(os.path.dirname(filename),exist_ok=True)
     IndexFile = open(filename, 'w')
     IndexFile.write(FinalPostingList)
     IndexFile.close()
 
-    TitleFileName = './data/title' + str(Storage["IndexFileNum"]) + '.txt'
+    # TitleFileName = './data/title' + str(Storage["IndexFileNum"]) + '.txt'
+    TitleFileName = str(OutPutPath)+"/data/title" + str(Storage["IndexFileNum"]) + '.txt'
     os.makedirs(os.path.dirname(TitleFileName),exist_ok=True)
     TitleFile = open(TitleFileName, 'w')
     TitleStr = '\n'.join(Storage["PageTitle"])
@@ -293,14 +298,14 @@ def writeIntoFile():
 
 
 def MergeFiles():
-    tempFileNames = ['./data/temp0.txt','./data/temp1.txt']
+    tempFileNames = [str(OutPutPath)+"/data/temp0.txt",str(OutPutPath)+"/data/temp1.txt"]
 
     # Rename index0 to temp1.
-    os.rename('./data/index0.txt','./data/temp1.txt')
+    os.rename(str(OutPutPath)+"/data/index0.txt",str(OutPutPath)+"/data/temp1.txt")
 
     for i in range(1,Storage["IndexFileNum"]):
         print("Merging "+str(i))
-        readFileName = './data/index'+str(i)+'.txt'
+        readFileName = str(OutPutPath)+"/data/index"+str(i)+".txt"
         readFiles = [open(readFileName,'r'),open(tempFileNames[i%2],'r')]
 
         if os.path.exists(tempFileNames[(i+1)%2]):
@@ -348,18 +353,18 @@ def MergeFiles():
         os.remove(readFileName)
 
     # Rename temp0 to BigIndex
-    os.rename(tempFileNames[Storage["IndexFileNum"]%2],'./data/BigIndex.txt')
+    os.rename(tempFileNames[Storage["IndexFileNum"]%2],str(OutPutPath)+"/data/BigIndex.txt")
     os.remove(tempFileNames[(Storage["IndexFileNum"]+1)%2])
 
 def FinalSplit():
 
     PageCount = 0
 
-    BigIndex = open('./data/BigIndex.txt','r')
+    BigIndex = open(str(OutPutPath)+"/data/BigIndex.txt",'r')
     line = BigIndex.readline()
     TokenCount = 1
 
-    IndexPage = open('./data/index0.txt','w')
+    IndexPage = open(str(OutPutPath)+"/data/index0.txt",'w')
 
     SecondaryIndexList = []
     SecondaryIndexList.append(line.split(':')[0])
@@ -372,7 +377,7 @@ def FinalSplit():
             IndexPage.write(''.join(writeList))
             IndexPage.close()
             PageCount += 1
-            PageName = './data/index' + str(PageCount) + '.txt'
+            PageName = str(OutPutPath)+"/data/index" + str(PageCount) + ".txt"
             IndexPage = open(PageName, 'w')
             writeList = []
             SecondaryIndexList.append(line.split(':')[0])
@@ -386,15 +391,17 @@ def FinalSplit():
     BigIndex.close()
 
     # Has the first token of each Indexfile for easier search
-    SecondaryIndex = open('./data/SecondaryIndex.txt','w')
+    SecondaryIndex = open(str(OutPutPath)+"/data/SecondaryIndex.txt",'w')
     SecondaryIndex.write(' '.join(SecondaryIndexList))
     SecondaryIndex.close()
 
-    os.remove('./data/BigIndex.txt')
+    os.remove(str(OutPutPath)+"/data/BigIndex.txt")
 
     print("Total Pages: ",PageCount)
     print("Total Tokens: ",TokenCount)
 
+OutPutPath = sys.argv[2]
+# OutPutPath = "~/home/radheshyam/Desktop/Year3_1/IREL"
 parser = xml.sax.make_parser()
 parser.setContentHandler(WikiHandler())
 # parser.parse("/home/radheshyam/Desktop/Year3_1/IREL/IREL-MiniProject/Phase 1/enwiki-20220720-pages-articles-multistream15.xml-p15824603p17324602")
