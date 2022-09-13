@@ -12,10 +12,12 @@ from nltk.stem import SnowballStemmer
 # from nltk.stem import LancasterStemmer
 from functools import lru_cache
 import os
+import time
 
-from pathlib import Path
+# from pathlib import Path
 
 Storage = {"PageNum": 0, "IndexFileNum": 0, "PostingLists": defaultdict(list), "PageTitle": [], "DocChunk": 10001, "TokenChunk": 10001}
+TokenCount = 0
 
 StopWords = set(stopwords.words("english"))
 myStemmer = SnowballStemmer('english')
@@ -357,7 +359,7 @@ def MergeFiles():
     os.remove(tempFileNames[(Storage["IndexFileNum"]+1)%2])
 
 def FinalSplit():
-
+    global TokenCount
     PageCount = 0
 
     BigIndex = open(str(OutPutPath)+"/data/BigIndex.txt",'r')
@@ -402,6 +404,7 @@ def FinalSplit():
 
 OutPutPath = sys.argv[2]
 # OutPutPath = "~/home/radheshyam/Desktop/Year3_1/IREL"
+startTime = time.time()
 parser = xml.sax.make_parser()
 parser.setContentHandler(WikiHandler())
 # parser.parse("/home/radheshyam/Desktop/Year3_1/IREL/IREL-MiniProject/Phase 1/enwiki-20220720-pages-articles-multistream15.xml-p15824603p17324602")
@@ -412,9 +415,22 @@ parser.parse(sys.argv[1])
 MergeFiles()
 # Step 2: Split for every 10000 tokens?
 FinalSplit()
+endTime = time.time()
 
-
-
+statStr = "Time taken: "+str(endTime-startTime)+" seconds\n"
+statStr += "Total Tokens: "+str(TokenCount)+"\n"
+NumIndexs = TokenCount//int(Storage["TokenChunk"])
+if TokenCount%int(Storage["TokenChunk"]) != 0:
+    NumIndexs += 1
+statStr += "Total Index Files: "+str(NumIndexs)+"\n"
+indSize = 0
+for file in os.scandir(str(OutPutPath)+"/data"):
+    indSize += os.path.getsize(file.path)
+indSize = indSize / float(1<<30)
+statStr += "Total Index Size: "+str(indSize)+" GB"
+statFile = open(str(OutPutPath)+"/data/stats.txt",'w')
+statFile.write(statStr)
+statFile.close()
 
 
 # All the Tags in the document:
