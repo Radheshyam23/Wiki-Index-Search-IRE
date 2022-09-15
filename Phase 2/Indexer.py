@@ -358,6 +358,77 @@ def MergeFiles():
     os.rename(tempFileNames[Storage["IndexFileNum"]%2],str(OutPutPath)+"/data/BigIndex.txt")
     os.remove(tempFileNames[(Storage["IndexFileNum"]+1)%2])
 
+
+
+def newMergeFiles():
+    # totIndex: Total number of Index files (right after parsing...)
+    totIndex = Storage["IndexFileNum"]
+
+    CurrEndIndex = totIndex-1
+
+    while True:
+
+        if CurrEndIndex == 0:
+            print("Merge Done!!")
+            break
+
+        for i in range(0,CurrEndIndex+1):
+            low = i
+            high = CurrEndIndex - i
+
+            if low >= high:
+                CurrEndIndex = high
+                break
+
+            print("Merging "+str(low)+" and "+str(high))
+            readFileNames = [str(OutPutPath)+"/data/index"+str(low)+".txt", str(OutPutPath)+"/data/index"+str(high)+".txt"]
+            readFiles = [open(readFileNames[0],'r'),open(readFileNames[1],'r')]
+            FinalIndexFile = open(str(OutPutPath)+"/data/temp.txt",'w')
+
+            line0 = readFiles[0].readline()
+            line1 = readFiles[1].readline()
+            splitLine0 = line0.split(':')
+            splitLine1 = line1.split(':')
+        
+            while line0 and line1:
+                if splitLine0[0] < splitLine1[0]:
+                # Token of line1 lexicographically smaller than that of line 2
+                    FinalIndexFile.write(line0)
+                    line0 = readFiles[0].readline()
+                    splitLine0 = line0.split(':')
+                
+                elif splitLine0[0] > splitLine1[0]:
+                    FinalIndexFile.write(line1)
+                    line1 = readFiles[1].readline()
+                    splitLine1 = line1.split(':')
+
+                else:
+                    FinalIndexFile.write(splitLine0[0]+':'+splitLine0[1].strip()+splitLine1[1])
+                    line0 = readFiles[0].readline()
+                    line1 = readFiles[1].readline()
+                    splitLine0 = line0.split(':')
+                    splitLine1 = line1.split(':')
+            
+            while line0:
+                FinalIndexFile.write(line0)
+                line0 = readFiles[0].readline()
+            
+            while line1:
+                FinalIndexFile.write(line1)
+                line1 = readFiles[1].readline()
+
+            readFiles[0].close()
+            readFiles[1].close()
+            FinalIndexFile.close()
+            # remove the two files we merged
+            os.remove(readFileNames[0])
+            os.remove(readFileNames[1])
+            # rename temp1 to the lower index file
+            os.rename(str(OutPutPath)+"/data/temp.txt",str(OutPutPath)+"/data/index"+str(low)+".txt")
+
+    os.rename(str(OutPutPath)+"/data/index0.txt",str(OutPutPath)+"/data/BigIndex.txt")
+
+
 def FinalSplit():
     global TokenCount
     PageCount = 0
@@ -412,7 +483,8 @@ parser.parse(sys.argv[1])
 
 # Now, merge all these index files and then split it again. So we will have unique tokens (not repeated across multiple files)
 # Step 1: Merge
-MergeFiles()
+# MergeFiles()
+newMergeFiles()
 # Step 2: Split for every 10000 tokens?
 FinalSplit()
 endTime = time.time()
